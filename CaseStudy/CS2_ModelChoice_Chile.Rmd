@@ -1,0 +1,174 @@
+---
+title: 'Case Study 2: Model choice: Chile'
+author: "Richard Wilkinson"
+output:
+  html_document:
+    theme: united
+    toc: yes
+  pdf_document:
+    highlight: default
+    toc: no
+---
+
+
+
+
+This case study is included to  make you think about what questions we might want to ask, and how we might answer them.
+
+
+The data are from a survey of 2700 people ahead of the 1988 Chilean national referendum to determine whether Augusto Pinochet should stay in power or not (Pinochet was the military dictator of Chile from 1973 to 1990. He killed at least 2000 political opponents, and tortured many more. He was considered an important ally to Margret Thatcher.). 
+
+```{r, warning=FALSE}
+library(car)
+Chile[1:10,]
+str(Chile)
+```
+
+
+**region** is a categorical variable with levels M $=$ metropolitan, S $=$ south, N $=$ north, etc.
+
+**population** is a continuous variable denoting the number of people in the city where the respondent lives
+
+**education** is a categorical variable with levels P $=$ Primary, S $=$ secondary, PS $=$ post-secondary 
+
+**income** is the respondents yearly salary in Pesos
+
+**vote** is their reported voting intentions, with Y = yes (Pinochet should stay in power), N = no, A = abstain, U = undecided
+
+The other variables have their obvious meaning. Note that **region, sex, education** and **vote** are categorical variables i.e., they take a discrete value, whereas **income, age** and **population** are continuous variables.
+
+
+The data currently have some missing values, represented as 'NA' by R. Lets remove these from the data set. Note that we can't use x==NA as NA is a special character. We have to test using is.na(x) instead.
+
+```{r, message=FALSE}
+library(dplyr)
+ChileData = filter(Chile, !is.na(vote), !is.na(education), !is.na(age), !is.na(income))
+```
+
+
+
+## Contingency tables
+
+Suppose we want to see whether education level has an effect on voting intention
+
+- How can we test for this?
+
+
+```{r}
+votebyed <- table(ChileData$education, ChileData$vote)
+votebyed
+chisq.test(votebyed)
+
+```
+
+
+## One-way ANOVA
+Lets ignore the voting part of the data. 
+ How would you test whether **income** was dependent upon **sex**?
+
+
+\vspace{8cm}
+
+
+```{r, fig.width=3, fig.height=3}
+library(ggplot2)
+qplot(x=sex, y= log(income), data=ChileData, geom='boxplot')
+```
+
+
+```{r}
+fit1 <- lm(income~sex, data = ChileData)
+fit0 <- lm(income ~ 1, data=ChileData)
+anova(fit0, fit1)
+```
+
+This is a *one-way analysis of variance (ANOVA)* model. Analysis of variance attempts to determine whether different groups have different mean responses, in this case, different average incomes between males and females. The idea is to look at the variability between groups (i.e. average salary of men vs salary of women), and the variability within a group (ie. salary variation amongst all males), and to see if the former is larger than one would expect if groups were the same.
+
+This is a *one-way* ANOVA become there is just one discrete factor (sex).
+
+
+## Two-way ANOVA
+
+
+
+How would you test whether **income** was dependent upon **sex** after controlling for the effect of education?
+
+\vspace{8cm}
+
+
+
+```{r}
+fit2 <- lm(income~sex + education, data=ChileData)
+fit3 <- lm(income~education, data=ChileData)
+anova(fit3, fit2)
+```
+
+This is a *two-way* ANOVA model as there are two discrete factors, sex and education.
+
+### Two-way ANOVA with interaction
+
+Are the effects of sex and education additive or is there an interaction between them?
+
+```{r}
+interaction.plot(ChileData$sex, ChileData$education, ChileData$income)
+fit3 <- lm(income~sex *education, data=ChileData)
+anova(fit3, fit2)
+```
+
+
+
+
+
+## Simple linear regression
+
+
+How would you test whether **income** was dependent upon **age**?
+
+
+\vspace{8cm}
+
+
+```{r}
+fit4 <- lm(income~age, data=ChileData)
+summary(fit4)
+```
+
+
+
+## ANCOVA
+
+
+How could you test whether **income** was dependent upon **education** after controlling for **age**?
+
+\vspace{8cm}
+
+```{r}
+fit5 <- lm(income~age + education, data=ChileData)
+anova(fit4,fit5)
+```
+
+This is an *analysis of covariance* model as there is a combination of continuous and discrete covariates.
+
+## Summary
+
+-  The first type of analysis compared two categorical variables using **contingency tables**. The response variables was **vote** and the covariate was **education**.
+
+- The second and third analyses had a continuous response variable **income**, but had categorical covariates (**sex** and **education**). We analysed this using a type of linear regression analysis called **Analysis of Variance (ANOVA)**.
+
+- The fourth analysis had a continous resonse **income**, and one categorical covariate **education** and one continous covariate **age**. We analysed this using linear regression - a type of  **Analysis of Covariance (ANCOVA)**.
+
+
+
+\begin{tabular}{c|c|c}
+Explanatory variables & Response variable & Methods\\
+\hline
+Categorical & Categorical & Contingency\\
+Categorical & Continuous & ANOVA \\
+Continous & Continuous & Regression \\
+Categorical and Continous & Continuous & ANCOVA \\
+Continous & Categorical & Generalised regression (see G13MED) \\
+\end{tabular}
+
+As we shall see, ANOVA and ANCOVA are really just special cases of regression.
+
+

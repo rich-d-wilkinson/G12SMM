@@ -1,0 +1,360 @@
+---
+title: 'Case Study 5: Hypothesis testing: Tax and Fuel consumption in the USA'
+author: "Richard Wilkinson"
+output:
+  pdf_document:
+    highlight: default
+    toc: no
+  html_document:
+    theme: default
+    toc: yes
+---
+
+
+The data
+======================================
+
+US Federal Highway Administration collected the following data in order to understand the effect of state gasoline tax on fuel consumption.
+
+They collected information on the  following quantities:
+
+- TAX =Gasoline state tax rate, cents per gallon
+- DLIC = Number of licenced drivers per 1000 people in the state
+- INC = Per capita personal income for the year 2000 (in \$1000s) for the state
+- ROAD = Miles of federal-aid highway  (in 1000s) for the state
+- FUEL = Gallons of gasoline sold for road use per capita
+- State = State name
+
+Lets start by downloading the data
+
+```{r}
+filepath <- "https://www.maths.nottingham.ac.uk/personal/pmzrdw/FuelData.txt"
+
+# Download the data from the internet
+download.file(filepath, destfile = "FuelData.txt", method = "curl")
+FuelData <- read.table(file='FuelData.txt', header=TRUE,sep="&")
+FuelData[1:10,]
+str(FuelData) # look at the data structure
+```
+
+
+
+Lets first visualise the data with a scatter-plot matrix
+
+```{r}
+plot(FuelData[,-1])  ## -1 so as not to plot the state name
+```
+
+or we can use the following, which draws a smooth on the data suggesting the general trend (useful when $n$ is large).
+```{r, eval=FALSE}
+require(car)
+scatterplotMatrix(FuelData[,-1]) ## gives slightly more info
+```
+
+The plots give the impression that FUEL decreases on average with TAX, but it is hard to say anything for certain as there is a lot of variation. The impression is that FUEL is at best weakly related to the other variables.
+
+However, the scatter-plot matrix just shows marginal relationships between pairs of variables (i.e. FUEL vs TAX ignores the information in DLIC, ROAD and INC). It doesn't help us to understand how fuel is related to all four predictors simultaneously.
+
+
+Multiple linear regression
+=======================================
+
+Consider the multiple linear regression model
+
+$$FUEL_i=\beta_0 + \beta_1 TAX_i+\beta_2 DLIC_i+\beta_3 INC_i+ \beta_4 ROAD_i+\epsilon_i$$
+
+
+```{r}
+fit <- lm(FUEL ~ TAX + DLIC + INC + ROAD, data = FuelData  )
+coef(fit)
+```
+
+The coefficients tell us how important each variable is for predicting the fuel consumption, but its *always* nice to visualise things when possible. Visualising a model with 4 inputs isn't easy, but the R package visreg helps. 
+
+```{r, warning=FALSE}
+library(visreg) # You will have to install the package first time you use it
+# install.packages('visreg')
+par(mfrow=c(2,2))
+visreg(fit)
+```
+
+
+Testing
+==============================
+
+The  key question we want to answer: 
+
+- Is TAX useful for predicting FUEL after including ROAD, INC, DLIC?
+
+Test $H_{0}:\beta_{1}=0;$
+ vs $H_{1}: \beta _{1}\neq 0;$
+
+In this case we can use a t-test or an F-test as there is just a single constraint, and $F_{1, n-p} = (t_{n-p})^2$. The test statistic is:
+$$
+T=\frac{\widehat{\beta}_1}{\textrm{std.error}( \widehat{\beta}_{1}) }\sim t_{n-p}\quad\text{under }H_{0}.
+$$
+i.e.  we should reject $H_{0}$ at the
+$100 \alpha$% level if
+
+$$
+\left| T_{obs}\right| \geqslant t_{46}\left( 1-\alpha /2\right).
+$$
+
+R automatically carries out this test when you run the summary command.
+```{r}
+summary(fit)
+```
+We can  simply read off the t-statistic and the corresponding p-value. R also provides a visual indication of the significance, with '.' in this case, showing that the p-value is between 0.05 and 0.1, i.e., not enough evidence to reject $H_0$ at the 5% level.
+
+
+- This table suggests that TAX is the only variable that does not contain much information about the response once the other variables have been considered.
+
+- It is important to note that the $t$-tests on each $\beta_{j}$ for including that parameter are not independent. For example if two of the input variables were not significant then leaving just one of them out of the model may cause the other one to become significant.
+
+- Conversely, if only TAX and the intercept are included in the model, then TAX might well be significant. 
+
+
+This contains all of the information in a concise format. You should make sure you understand what every number in this output means, how to interpret it, and how to calculate it.  If you wanted to do the analysis using the F-test, you could type
+
+```{r, eval=FALSE}
+fit2 <- lm(FUEL ~ DLIC+INC+ROAD, data=FuelData)
+anova(fit, fit2)
+```
+
+Test for the existence of regression
+--------------------------------
+
+We want to test whether the full model is a significant improvement over the null model, i.e., test
+$$H_{0}:\beta _{1}=\beta_2=\beta_3=\beta_4=0;\,\beta _{0}\;\,%
+\text{arbitrary}$$
+vs 
+$$H_{1}:\beta _{0},\, \beta_1,\,\beta_{2},\,\beta _{3},\,\beta
+_{4}\;\,\text{arbitrary}$$
+
+
+```{r}
+fit0<-lm(FUEL~1, data=FuelData)
+anova(fit0, fit) ## compares the full model with the null model
+```
+We can read from the table that $F=10.43$ and  $p<0.001$.
+
+- This implies that the full model is a significant improvement on the null model, i.e. that at least one of the input variables is informative about the response variable.
+
+- It does not imply that *all* of the input variables are informative though. 
+
+
+
+Since $F>F_{4,46}(0.99)=3.76$ we have strong evidence that at least some of the explanatory variables are useful for prediction.
+
+Detecting outliers
+==================================
+
+
+```{r, warning=FALSE}
+require(car)
+influenceIndexPlot(fit, id.n=2, labels=FuelData$State)
+influencePlot(fit, id.n=2, labels=FuelData$State)
+```
+These suggest that Alaska is by far the most influential point as it is a large outlier and has reasonably high leverage. It could be argued that it is an unusual state and should be left out of the analysis.
+
+```{r}
+FuelData2 <- FuelData[-2,] # remove Alaska - alternatively use select command in dply package
+fit3 <- lm(FUEL ~ TAX + DLIC + INC + ROAD, data = FuelData2)
+compareCoefs(fit, fit3)
+summary(fit3)
+```
+  
+This has made us much more certain that TAX has an impact on FUEL usage. We can check if removing any of the other points with large Cook's distance has much effect, but only perhaps Dist. of Col. and Hawaii can be justified on the grounds of being unusual in some way.
+
+```{r}
+FuelData3 <- FuelData[-c(2,9,12),]
+fit4 <- lm(FUEL ~ TAX + DLIC + INC + ROAD, data = FuelData3)
+compareCoefs(fit, fit3, fit4, se = FALSE)
+summary(fit4)
+```
+
+Again, removing these two additional states has strengthed the evidence against $H_0$. Finally, to be confident in our conclusion, we should check that there are no obvious violations of the modelling assumptions.
+
+<!--
+
+
+
+```{r}
+influenceIndexPlot(fit4, id.n=2, labels=FuelData3$State)
+residualPlots(fit4, id.n=2, labels=FuelData3$State)
+qqPlot(fit4, id.n=2, labels=FuelData3$State)
+crPlots(fit4, id.n=2, labels=FuelData3$State)
+```
+These plots suggest a slight skew, but its only caused by a small number of data points and so we can probably be happy at stopping the analysis here and drawing some conclusions.
+
+
+
+
+
+Variable selection
+==========================
+
+### Best subsets regression
+
+```{r, eval=FALSE}
+install.packages(pkgs="leaps")  #- if you've not installed package yet, run this first time
+```
+
+```{r}
+library(leaps)
+leaps(x=FuelData[,2:5], y=FuelData[,6], method="Cp")
+```
+which tells us the full model is prefered in this case.
+
+We could also try 
+
+```{r eval=FALSE}
+leaps(x=FuelData[,2:5], y=FuelData[,6], method="adj")
+leaps(x=FuelData[,2:5], y=FuelData[,6], method="r2")
+```
+which use different criteria to decide upon the best fit.
+
+
+UPDATE - I THINK regsubsets should be used instead
+```{r}
+a<-regsubsets(FUEL ~ (TAX+DLIC+INC+ROAD)^2, data=FuelData)
+summary(a)
+#subsets(a)
+a<-regsubsets(FUEL ~ (TAX+DLIC+INC+ROAD)^2, data=FuelData, method='forward', nbest=3)
+summary.out <-summary(a)
+summary.out
+plot(a, scale='adjr2', main='Adjusted R^2')
+plot(a, scale='Cp')
+
+res.legend <- subsets(a, statistic="cp", legend = FALSE, min.size = 5, main = "Mallow Cp")
+abline(a = 1, b = 1, lty = 2)
+which.max(summary.out$adjr2)
+summary.out$which[22,]
+b<-regsubsets(Fertility~.,data=swiss,nbest=2)
+summary(b)
+```
+
+
+### Stepwise Regression
+
+R uses the Akaike Information Criterion (AIC) to perform stepwise regression. It uses a slightly different version of AIC to that given in the notes, which differs by an additive constant to the standard definition of AIC. However, as only relative differences matter, this makes no difference to the end result.
+
+```{r}
+fit0 <- lm(FUEL~1, data=FuelData)   ### Start with the null model.
+step(fit0, FUEL~DLIC+TAX+INC+ROAD)
+```
+
+You should try fitting higher order models and selecting the best regression steps. For example, we can include first order interaction terms (ie DLIC*TAX, INC*ROAD etc, but it does not include quadratic terms) as follows:
+
+```{r}
+step(fit0, FUEL~(DLIC+TAX+INC+ROAD)^2)
+```
+
+
+
+
+
+
+### Variable selection test
+
+
+
+In this section we have supplemented the dataset with an extra (non-informative) input variate *RAND*, consisting of 51 observations from a $U(0,1)$ random variable. Will the variable selection methods detect this input variate as non-informative?
+
+
+Using best subsets regression, R gives us the following output:
+
+```{r}
+RAND<-runif(n=51)
+leaps(x=cbind(FuelData[2:5], RAND), y=FuelData[,6], method="Cp")
+```
+Based on these results we choose the model including only TAX, DLIC, INC and ROAD as it has the lowest $C_p$.
+
+```{r}
+step(fit0, FUEL~DLIC+TAX+INC+ROAD+RAND, data=FuelData)
+```
+
+The stepwise regression has suggested the same model as the best subsets regression.
+
+### Ridge regression
+We can also look at ridge regression.
+
+```{r}
+# install.package('glmnet')  
+# install package first time it is used - requires an internet connection
+library(glmnet)
+attach(FuelData)
+# Define new data frame containing all the data we'll need
+data2 = data.frame('FUEL'=FUEL, 'DLIC'=DLIC,'TAX'=TAX, 'INC'=INC,
+                   'ROAD'=ROAD, 'DLIC*TAX'= DLIC*TAX, 'DLIC*INC'=DLIC*INC, 
+                   'DLIC*ROAD'=DLIC*ROAD, 'TAX*INC'=TAX*INC, 'TAX*ROAD'=TAX*ROAD, 
+                   'INC*ROAD'=INC*ROAD, 
+                   'DLIC^2'=DLIC^2, 'TAX^2'=TAX^2, 'INC^2'=INC^2, 'ROAD^2'=ROAD^2)
+X = as.matrix(data2) #glmnet requires a matrix as input rather than a dataframe
+X = X[,-1] ## remove the FUEL column as this is what we wish to predict
+ridge = glmnet(X, FUEL, alpha=0)  # alpha=0 gives ridge regression
+# Other values of alpha give different regularisation penalties 
+plot(ridge, xvar='lambda')
+```
+
+We can do cross-validation to find help choose the value of $\lambda$
+```{r}
+cvridge=cv.glmnet(X,FUEL, alpha=0)# How the prediction error varies with lambda
+cvridge$lambda.min
+plot(cvridge)
+```
+
+The estimated parameter values are
+```{r}
+coef(ridge,s=cvridge$lambda.min)
+```
+
+Note how these compare to the estimates from fitting the full model
+```{r}
+fitfull = lm( FUEL ~ ., data2)
+coef(fitfull)
+```
+Or from forward stepwise regression
+```{r}
+fwdfit <-step(fit0, FUEL ~  (DLIC+TAX+INC+ROAD)^2+I(DLIC^2) + I(TAX^2) + I(INC^2) + I(ROAD^2), trace=0)
+coef(fwdfit)
+```
+or backward stepwise regression
+```{r} 
+backwardfit <-step(fitfull, FUEL ~ . , trace=0)
+coef(backwardfit)
+```
+
+Note that the results obtained from forward and backward regression differ substantially, as the search proceedure became stuck at a local minima. This is often a problem with stepwise regression approaches.
+
+### Cross-validation estimate of the prediction error
+
+We can use the package *cvTools* to easily assess the prediction error of the model using cross-validation.
+```{r, eval=FALSE}
+install.packages('cvTools') ## only need to do this once
+```
+
+```{r}
+set.seed(1) ## seed the random number generator so that we get the same results everytime
+library(cvTools)
+cvFit(fitfull,data = data2, y = data2$FUEL, K = 5, R=100)
+cvFit(backwardfit ,data = data2, y = data2$FUEL, K = 5, R=100)
+cvFit(fwdfit ,data = data2, y = data2$FUEL, K = 5, R=100)
+```
+We've done 5 fold cross-validation here - leave 5 data points out, fit the model using the remaining 46 states, the predict the 5 left out scores. We've repeated this 100 times to get an estimate of the prediction error.
+
+We can see the fit found from the forward stepwise regression performs better than the other two models, but that the model found by backward stepwise regression works better than the full model. Note that the forward stepwise model is also the simplest, which may not be a coincidence.
+
+Finding the CV score for ridge regression is a little harder:
+```{r}
+cvout <-cv.glmnet(X,FUEL, alpha=0, lambda = c(cvridge$lambda.min, cvridge$lambda.1se), nfolds=5)
+
+cvscores<-rbind(cvout$lambda,sqrt(cvout$cvm))
+rownames(cvscores) = c('lambda', 'predictionerror')
+cvscores
+```
+So using $\lambda=$ `r cvridge$lambda.min` (the value we'd previously estimated as giving us the smallest prediction error) gives very similar performance to the forward stepwise regression model.
+
+
+-->
+

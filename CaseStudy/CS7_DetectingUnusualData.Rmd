@@ -1,0 +1,119 @@
+---
+title: 'Case Study 7: Unusual and influential data'
+author: "Richard Wilkinson"
+output:
+  html_document:
+    theme: default
+    toc: yes
+  pdf_document:
+    highlight: default
+    toc: no
+---
+
+
+
+# Davis's weight data
+Lets look at real data  on the measured and reported weight of 183 male and female subjects. 
+
+```{r, warning=FALSE, message=FALSE}
+library(car) # the dataset is in this package as well as some plotting tools
+str(Davis)
+Davis[1:10,]
+```
+
+Suppose we are interested in whether there is a difference between the accuracy with which each sex reports their own weight. A sensible model to assess this might be
+
+$$\mbox{repwt}_i = \begin{cases}
+a + b\times\mbox{weight} + \epsilon \mbox{ if Male}\\
+(a+c) + (b+d)\times\mbox{weight} + \epsilon \mbox{ if Female}\\
+\end{cases}
+$$
+
+```{r}
+Davis <- within(Davis, sex <- relevel(sex, ref='M'))
+fit1 <- lm(repwt ~ weight *sex, data = Davis)
+summary(fit1)
+```
+So this suggests males are unbiased estimators of their own weight (as $a\approx0$ and $b\approx 1$) whereas females under-report their weight if they are relatively heavy (gradient is $0.99 - 0.73 = 0.26$), and over report if they are relatively light (intercept for women is $1.4+40.0 = 41.4$ kg). Note that the $R^2$ suggests a good fit.
+
+However, if we plot the data we can see this is entirely due to a single female subject for whom the weight and height measurements were mis-labelled.
+
+```{r,echo=FALSE, warning=FALSE}
+library(ggplot2)
+q <- ggplot(Davis, aes(x=weight, y=repwt, color=sex, shape=sex))+
+   geom_point(size=4)
+q <- q + scale_shape_manual(values=c('M','F'))
+q+geom_smooth(method='lm', size=1, se=FALSE, fullrange=TRUE)
+```
+
+In this simple case we should have spotted the problem in our exploratory data analysis. However, lets use the diagnostic tools in the car package to see how easy it is to spot.
+
+```{r}
+library(car)
+influencePlot(fit1) # note these functions are in the car package,
+```
+
+It is immediately obvious that there is one very influential point. The only sensible thing to do (if we cannot correct the observation) is to remove the offending data point and refit the model.
+
+```{r,  message=FALSE}
+library(dplyr) # so that we can use the filter command
+Davis2 <- filter(Davis, weight<160)
+fit2 <-lm(repwt ~ weight *sex, data = Davis2)
+summary(fit2)
+```
+
+Having removed this data point, there is now no significant difference between the accuracy of men and women when reporting their weight.
+
+```{r, echo=FALSE, warning=FALSE}
+q <- ggplot(Davis2, aes(x=weight, y=repwt, color=sex, shape=sex))+
+  geom_point(size=6)
+q <- q + scale_shape_manual(values=c('M','F'))
+q+geom_smooth(method='lm', size=1, se=FALSE, fullrange=TRUE)
+```
+
+# Duncan's Occupational Prestige Data
+Data on the prestige and other characteristics of 45 U.S. occupations in 1950.
+The data consists of the following measurements:
+
+- type: Type of occupation. A factor with the following levels: prof, professional and managerial; wc, white-collar; bc, blue-collar.
+
+- income: Percent of males in occupation earning $3500 or more in 1950.
+
+- education: Percent of males in occupation in 1950 who were high-school graduates.
+
+- prestige: Percent of raters in NORC study rating occupation as excellent or good in prestige.
+
+Lets fit the model
+$$\mbox{prestige}=a+b\times\mbox{education} + c\times\mbox{income} + \epsilon$$
+and examine the data for influential data points.
+
+```{r}
+fit1 <- lm(prestige~education + income, data=Duncan)
+summary(fit1)
+```
+
+So we can see that both the education  and income level of those in the industry are important indicators of prestige. Now lets looks for outliers and high-leverage points.
+```{r}
+influencePlot(fit1)
+influenceIndexPlot(fit1, id.n=3)
+```
+
+Both conductor and rail road engineer are high leverage points because of their relatively high salary but moderately low level of education level. Ministers are the most influential observation because they have a low income given their high level of education. 
+
+It is worth repeating the analysis removing these datapoints.
+
+```{r}
+fit2 <- update(fit1,
+       subset = rownames(Duncan) != "minister")
+compareCoefs(fit1,fit2)
+```
+So removing minister has  increased the income coefficient by about 20\% and has decreased the education coefficient similarly.
+
+```{r}
+fit3 <- update(fit1,
+               subset = !(rownames(Duncan) %in% c('minister', 'conductor')) )
+compareCoefs(fit1, fit2, fit3, se=FALSE)
+```
+
+So removing these two outliers does have a considerable effect on the estimated coefficients. Should we remove them before presenting our results? That is hard to say. I think the honest approach would be to highlight this sensitivity in the report, but on balance, I think there are clear reasons why these two professions buck the trend (Ministers tend to have a calling and accept a low salary and conductors are a little like footballers - they are a select bunch of very successful individuals who probably sacrificed school to get to where they are), and so the more honest trend is probably represented by the model that excludes these two professions.
+The case of rail road engineers is less clear cut, and so I would leave these in. Note that these are my subjective judgements, and would need careful explanation and justification in any report.

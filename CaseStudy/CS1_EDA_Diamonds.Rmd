@@ -1,0 +1,101 @@
+---
+title: 'Case Study 1: Visualising the data'
+author: "Richard Wilkinson"
+output:
+  pdf_document:
+    highlight: default
+    toc: no
+  html_document:
+    theme: united
+    toc: yes
+---
+
+This document is created using the  rmarkdown package in Rstudio. This is an easy way of combining R code and output, with text. You can download the .Rmd file from moodle. We are making use of colour plots, and so this is best viewed on a computer, rather than in your black and white lecture handout.
+
+Visualising datasets before fitting any models can be extremely useful. It allows us to see obvious patterns and suggests models and transformations.
+
+R has a very good basic plotting function. Here, however, we use an R package (ggplot2) that provides additional functionality that produces beautiful plots. The first time you use this package you will need to install it (if not using the University computers)
+
+```{r eval =FALSE}
+install.packages('ggplot2')
+```
+
+A nice introduction to this package is provided at
+http://www.r-bloggers.com/basic-introduction-to-ggplot2/
+
+
+Plotting the data
+=====================================
+
+
+
+The data
+-------------------------
+
+We will look at a large dataset consisting of prices and other attributes of 54,000 diamonds. The variables are
+
+- price: in US dollars
+- carat: weight of the diamond
+- cut: quality of the cut (Fair, Good, Very Good, Premium, Ideal)
+- colour: diamond colour, from J (worst) to D (best)
+- clarity: a measurement of how clear the diamond is (I1 (worst), SI1, SI2, VS1, VS2, VVS1, VVS2, IF (best))
+- x: length in mm (0–10.74)
+- y: width in mm (0–58.9)
+- z: depth in mm (0–31.8)
+- depth: total depth percentage = z / mean(x, y) = 2 * z / (x + y) (43–79)
+- table: width of top of diamond relative to widest point (43–95)
+
+```{r}
+library(ggplot2)
+str(diamonds)
+```
+
+Lets start by looking at the effect of the carat on price.
+```{r}
+qplot(carat, price, data = diamonds)
+```
+
+We see the obvious trend that bigger diamonds are generally worth more. 
+It looks like a transformation to x and y would improve this plot. As price is constrained to be positive, lets try taking logs.
+```{r}
+qplot(carat, price, data = diamonds, log='xy')
+```
+
+We can add the fitted regression line:
+```{r}
+qplot(carat, price, data = diamonds, log='xy', geom=c('point','smooth'), method='lm')
+```
+
+
+We can add more information by colouring the points by their clarity (note that clarity is a factor with  8 levels)
+```{r}
+qplot(carat, price, data = diamonds,log='xy', geom=c('point','smooth'), method='lm', colour=clarity )
+```
+
+The clearer diamonds are worth more!
+
+The cut quality also has an effect
+```{r}
+qplot(carat, price, data = diamonds, colour=color, log='xy')
+```
+
+
+This is less clear, so lets use the facets feature of qplot
+```{r}
+qplot(carat, price, data = diamonds, log='xy', facets = ~color)
+```
+
+which hasn't particularly helped.
+
+Note that it is possible to include too much information on a single plot:
+```{r}
+qplot(carat, price, data = diamonds, log='xy', facets = cut~color, color=clarity)
+```
+
+Here we've plotted log(price) against log(carat), coloured the points by their clarity, and then given a separate plot for each different diamond colour and cut quality. I don't personally find this very useful, but until you try, you never know. Data visualisation is essentially a case of trial and error 
+
+- try lots of different plots, discarding most of them. 
+
+Some however, will be useful 
+
+- it is these you want to report to your client/include in coursework etc.

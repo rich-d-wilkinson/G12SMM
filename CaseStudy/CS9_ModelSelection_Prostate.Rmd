@@ -1,0 +1,157 @@
+---
+title: 'Case Study 9: Model selection: Predicting prostate cancer'
+author: "Richard Wilkinson"
+output:
+  html_document:
+    theme: default
+    toc: yes
+  pdf_document:
+    highlight: default
+    toc: no
+---
+
+
+### The data
+
+The data for this example come from a study
+by Stamey et al. (1989) that examined the correlation between the level of
+prostate specific antigen (PSA) and a number of clinical measures, in 97
+men who were about to receive a radical prostatectomy. PSA is a protein that is produced by the prostate gland. The higher a man’s PSA level, the more likely it is that he has prostate cancer. 
+
+The goal is to predict the log of PSA (lpsa) from a number of measurements
+including log cancer volume (lcavol), log prostate weight (lweight),
+age, log of benign prostatic hyperplasia amount (lbph), seminal vesicle invasion (svi), log of capsular penetration (lcp), Gleason score (gleason), and
+percent of Gleason scores 4 or 5 (pgg45).
+
+The data are modelled in depth in the beautiful (but somewhat advanced) book *The Elements of Statistical Learning*, which is available for free at 
+http://statweb.stanford.edu/~tibs/ElemStatLearn/
+
+
+```{r}
+library(ElemStatLearn)
+data(prostate)
+str(prostate)
+plot(prostate)
+```
+
+
+The scatter plot matrix suggests some correlation between the covariates and lpsa. The data have been randomly split into a training set and a test set. Lets create two seperate datasets for ease.
+
+```{r, warning=FALSE, message=FALSE}
+library(dplyr)
+prostTrain <- filter(prostate, train)
+prostTest <- filter(prostate, !train)
+prostTrain <-select(prostTrain, -train)
+prostTest <-select(prostTest, -train)
+```
+
+We will use the training set to build the model, and then try to predict the test set. By comparing different models on the test set, we can compare model perfomance. We could repeat this with different assignment of data points to training or test set (a process that is then known as cross validation.)
+
+
+Lets start by fitting a linear model. 
+
+```{r}
+fit <- lm(lpsa~., data=prostTrain)
+coef(fit)
+predictions <- predict(fit, newdata=select(prostTest, -lpsa))
+mse_MSE <- mean((predictions - select(prostTest, lpsa))^2)
+mse_MSE
+```
+
+Here I've calculated the mean square prediction error on the test data.
+
+###  Best subsets regression
+
+Lets now look at best subsets regression. Here, every possible model in the model hierarchy is tried (all $2^8$ models), and the criterion calculated for each. 
+
+```{r, message=FALSE}
+require(leaps)
+a<-regsubsets(lpsa~., data=prostTrain)
+summary.out <-summary(a)
+summary.out
+summary.out$cp
+plot(a, scale='Cp')
+plot(a, scale='bic')
+```
+
+
+If we focus on the $BIC$, this suggests we try the three models
+```{r}
+fit1 <- lm(lpsa ~ lcavol + lweight, data=prostTrain)
+fit2 <- lm(lpsa ~ lcavol + lweight+svi, data=prostTrain)
+fit3 <- lm(lpsa ~ lcavol + lweight+svi+lbph, data=prostTrain)
+
+predictions <- predict(fit1, newdata=select(prostTest, -lpsa))
+mse_bestsubets1 <- mean((predictions - select(prostTest, lpsa))^2)
+
+predictions <- predict(fit2, newdata=select(prostTest, -lpsa))
+mse_bestsubets2 <- mean((predictions - select(prostTest, lpsa))^2)
+
+predictions <- predict(fit3, newdata=select(prostTest, -lpsa))
+mse_bestsubets3 <- mean((predictions - select(prostTest, lpsa))^2)
+
+mse_bestsubets1
+mse_bestsubets2
+mse_bestsubets3
+```
+
+###  Stepwise regression
+
+In this case, $n=67$ and there are only 256 possible models, and so an exhaustive search is possible. But suppose it were not, then we could resort to stepwise regression instead.
+
+Here, we use the AIC as the criterion to select the model.
+R uses  a slightly different version of the AIC to that given in the notes, which differs by an additive constant to the standard definition of AIC. However, as only relative differences matter, this makes no difference to the end result.
+
+
+```{r}
+fit_step1 <- step(fit)
+
+fit0 <- lm(lpsa ~1, data=prostTrain)
+fit_step2 <- step(fit0, scope = lpsa~lcavol + lweight + age +lbph + svi + lcp + gleason + pgg45) 
+
+coef(fit_step1)
+coef(fit_step2)
+
+predictions <- predict(fit_step1, newdata=select(prostTest, -lpsa))
+mse_step1 <- mean((predictions - select(prostTest, lpsa))^2)
+
+predictions <- predict(fit_step2, newdata=select(prostTest, -lpsa))
+mse_step2 <- mean((predictions - select(prostTest, lpsa))^2)
+mse_step1
+mse_step2
+```
+
+Note the very different answers found depending upon where we start the searches from. 
+
+### Ridge regression
+
+Finally, ridge regression.
+```{r, message=FALSE}
+library(glmnet)
+x =   select(prostTrain, c(lcavol, lweight, age, lbph, svi, lcp, gleason, pgg45))
+x=as.matrix(x)
+y =   select(prostTrain, lpsa)
+y=as.matrix(y)
+ridge=glmnet(x,y, alpha=0)
+ridge.cv=cv.glmnet(x,y, alpha=0)
+ridge.cv$lambda.min
+ridge.cv$lambda.1se
+plot(ridge.cv)
+
+xnew = select(prostTest,  c(lcavol, lweight, age, lbph, svi, lcp, gleason, pgg45))
+xnew = as.matrix(xnew)
+ridge.prediction1 = predict(ridge.cv, xnew, s = "lambda.1se")
+ridge.prediction2 = predict(ridge.cv, xnew, s = "lambda.min")
+mse_ridge1 <-  mean((ridge.prediction1 - select(prostTest, lpsa))^2)
+mse_ridge2 <-  mean((ridge.prediction2 - select(prostTest, lpsa))^2)
+
+mse_ridge1
+mse_ridge2
+```
+
+So for this test set, the model
+$$lpsa = a + b \times lcavol + c\times lweight+ d\times svi + \epsilon$$
+gives the best performance on the test set. If we split the data into test and training sets in a different way, we may find a different model performs better. Taking many such splits into test and training set, and finding the average prediction error on the test set, is a process called cross-validation, and is a key method for assessing the predictive performance of a model.
+
+
+

@@ -1,0 +1,81 @@
+---
+title: 'Case Study 8: Diagnosing problems'
+author: "Richard Wilkinson"
+output:
+  pdf_document:
+    highlight: default
+    toc: no
+  html_document:
+    theme: default
+    toc: yes
+---
+
+Lets look at some data from a Canadian survey on wages in Ontario. The data contains information on
+
+- wages: hourly rate
+- education: number of years of schooling
+- age in years
+- sex
+- language spoken
+
+of 7425 individuals.
+
+```{r, warning=FALSE}
+library(car)
+data(SLID)
+str(SLID)
+SLID[1:10,]
+```
+
+There are a number of missing data points. Lets remove these from the dataset and only work with individuals for whom we have complete information.
+
+```{r, message=FALSE, warning=FALSE}
+library(dplyr)
+WageData <- filter(SLID, !is.na(wages), !is.na(education), !is.na(language))
+scatterplotMatrix(WageData[,c('wages','sex', 'age', 'education')])
+```
+
+Lets start by fitting a basic model and examining some diagnostic plots.
+```{r}
+fit <- lm(wages~ sex + age + education, data = WageData)
+qqPlot(fit)
+hist(rstudent(fit))
+```
+
+The QQ-plot and the histogram of the residuals suggests a positive skew (as did the original histogram of the wage data in the scatterplot matrix). We can reduce positive skew by moving the response variable down the ladder of powers.
+
+```{r}
+fit2 <- lm(log(wages) ~ sex + age + education, data = WageData)
+qqPlot(fit2)
+```
+
+You could try other powers such as sqrt(wage), but log(wage) seems to have produced reasonable results. 
+Note that you can highlight the 5 most outlying data points in QQ-plots by using the command
+```{r, eval=FALSE}
+qqPlot(fit2, id.n=5)
+```
+
+Lets now check the residual plots:
+```{r}
+residualPlots(fit2, tests=FALSE)
+crPlots(fit2, terms=~age+education)
+```
+
+The command 
+```{r, eval=FALSE}
+crPlots(fit2) 
+```
+
+will also work, but gives a third plot for the categorical variable sex which is not useful. So I've removed it by specifying the terms to plot with the command crPlots(fit2, terms=~age+education).
+
+This shows some non-linearity, particularly in how the response depends upon age. We could try transforming age down the ladder of powers, but the  relationship looks like it could be non-monotone, in which case we will need to fit a quadratic model. Similarly, the dependence upon education looks  non-linear. We can try transforming this up the ladder of powers (see Tukey and Mosteller's bulging rule).
+
+
+
+```{r, message=FALSE}
+fit3 <- lm(log(wages) ~ sex + age + I(age^2) + I(education^2), WageData) 
+residualPlots(fit3, tests=FALSE)
+crPlots(fit3, terms=~.-sex)
+```
+
+These now looks pretty much perfect.

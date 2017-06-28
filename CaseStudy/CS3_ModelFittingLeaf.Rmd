@@ -1,0 +1,307 @@
+---
+title: 'Case Study 3: Basic model fitting: Leaf burning'
+author: "Richard Wilkinson"
+output:
+  pdf_document:
+    highlight: default
+    toc: no
+  html_document:
+    theme: default
+    toc: yes
+---
+
+## The data
+
+An experiment to determine the effect on the burn time of leaves on the concentration of Nitrogen, Chlorine and Potassium. To build a purely scientific model from first principles based on chemistry and physics alone, would be extremely challenging. So instead, we propose various statistical models and fit them to the observations.
+
+```{r}
+filepath <- "https://www.maths.nottingham.ac.uk/personal/pmzrdw/LeafData.txt"
+# Download the data from the internet
+download.file(filepath, destfile = "LeafData.txt", method = "curl")
+LeafData <- read.table(file='LeafData.txt', header=TRUE)
+LeafData[1:10,]
+str(LeafData) # look at the data structure
+
+```
+
+The variables are
+
+- Nitrogen % 
+- Chlorine %  
+- Potassium %
+- log of leaf burn time
+
+
+Lets start (as always), by visualising the data.
+```{r}
+plot(LeafData)
+```
+
+If you choose not to use R markdown, then you will have to manually save all of your figures using a command such as 
+```{r eval =FALSE}
+dev.print(pdf, file="FuelScatterPlots.pdf", width=12, height=12) # save the file
+```
+
+
+ 
+
+
+What questions might we want to ask?
+
+- How does the percentage of nitrogen, chlorine and potassium affect the leaf burn time?
+-  Which percentage is most important?
+
+
+
+ 
+ 
+ 
+
+
+Possible models 
+----------------------
+
+For the $i$th observation let $y_i$ be the log of leaf burn time, $x_{i,1}$ be the Nitrogen %, $x_{i,2}$ be the Chlorine %, and $x_{i,3}$ be the Potassium %. Let $\beta=(a,b,c)^T$.
+
+Which of the following are linear models?
+
+- $y_i=b x_{i,1}+\epsilon_i$,
+
+- $y_i=a+b x_{i,1}+\epsilon_i$,
+
+- $y_i=b^3 x_{i,1} + c x_{i,2}+\epsilon_i$,
+
+-  $y_i=a+b (x_{i,1}-x_{i,2})^2+\epsilon_i$,
+
+- $y_i=a+2b x_{i,1}+c\log(x_{i,2})+\epsilon_i$.
+
+- $y_i=a x_{i,1}+ b x_{i,1}^2 +\epsilon_i$.
+
+What is the design matrix $Z$ and parameter vector $\beta$ in the cases that are linear models?
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+<br>
+<br>
+<br>
+<br>
+
+<br>
+<br>
+<br>
+<br>
+
+\vspace{8cm}
+
+Simple linear regression
+------------------------------
+
+Let $y$ be the log leaf burn time and $x$ be the Nitrogen \%. We can write our simple linear regression model as
+$$
+y_i=a+b x_i+\epsilon_i,\qquad i=1,\dots,30.
+$$
+
+What are $\beta$, $g(x)^T$ and $Z$ here?
+
+
+\vspace{6cm}
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+<br>
+<br>
+<br>
+<br>
+
+
+
+
+ 
+To find the sum of squares estimates for this model using R, we can do the following:
+
+
+```{r}
+fit1 <- lm(log_burn_time~Nitrogen, data = LeafData)
+fit1
+coef(fit1)  # explicitly gives the fitted coefficients
+deviance(fit1)
+```
+
+Let $D_1$ denote the deviance of this first order linear fit.
+
+Model Choice
+----------------------------------
+We can fit a quadratic model.
+$$y_{i}=a +{b} x_i+c x_i^2+\epsilon_i\qquad i=1,\dots,n.$$
+
+ 
+The vector of parameters is $\beta=(a, b, c)^T$,
+
+$z_i^T = [1~x_i~x_i^2]$ and the design matrix is
+$$Z=\begin{bmatrix} 1 & x_1 & x_1^2 \\
+1 & x_2 & x_2^2 \\
+\vdots & \vdots & \vdots \\
+1 & x_n & x_n^2 \end{bmatrix}$$
+
+NB: This is a linear model since it is linear in the *parameters*.
+```{r}
+fit2 <- lm(log_burn_time~Nitrogen+I(Nitrogen^2), data =LeafData)
+fit2
+deviance(fit2)
+```
+
+
+
+
+Let $D_2$ denote the deviance of this quadratic linear model.
+
+When $D_{1}-D_{2}$ is large then the quadratic model is much better than the simple linear regression, i.e. the straight line model is 
+significantly improved by adding a quadratic term.
+
+Note the use of 
+```{r eval=FALSE}
+I(Nitrogen^2)
+```
+in the model formula. This is needed to seperate the two terms  Nitrogen and Nitrogen^2.
+
+If we had used
+```{r eval=FALSE}
+lm(formula = log_burn_time ~ Nitrogen + Nitrogen^2, data=LeafData)
+```
+
+then we would be fitting the linear model
+$$y_{i}=a +{b} (x_i+ x_i^2)+\epsilon_i\qquad i=1,\dots,n.$$
+instead (try it!).
+
+
+We can also fit the null model $$y_{i}=a +\epsilon_i\qquad i=1,\dots,n.$$
+```{r} 
+fit0 <- lm(log_burn_time~1, data=LeafData)
+fit0
+deviance(fit0)
+```
+      
+We can plot these three models
+```{r, warning=FALSE}
+library(visreg)
+out = visreg(fit2, band=FALSE)
+abline(fit1, lty=3, lwd=3)
+abline(fit0, lty=2, lwd=3)
+legend(x="topright",   lty = c(2, 3, 1), c("Null model", "Simple linear model", "Quadratic model"),  merge = TRUE, col=c(1,1,'blue'), lwd=3)
+```
+
+The plot and the deviances suggest that the linear model is probably sufficient. This is a subjective judgement based on eyeballing the data and fits - perhaps the most important aspect of model fitting.
+A more theoretical approach to model selection will be covered in Chapter 7.
+
+
+Simple linear model revisited, this time with matrices 
+------------------------------------
+
+
+Consider the simple linear model  considered above. The design matrix is
+$$Z =\begin{bmatrix} 1 & x_{1\,1}  \\ 
+1 & x_{2\,1} \\
+\vdots & \vdots  \\
+1 & x_{30\ 1} & \end{bmatrix}.$$
+We know that:
+
+- The unbiased least squares estimator is
+
+
+
+$$\hat{\beta}=(Z^TZ)^{-1}Z^Ty=(2.63,-0.59)^T$$
+
+- An unbiased estimator for $\sigma^2$ is
+
+$$s^2=\frac{1}{n-p}(y-Z\hat{\beta})^T(y-Z\hat{\beta})=0.12$$
+
+- An estimate for $\operatorname{Var}(\hat{\beta})$ is given by
+
+$$s^2(Z^TZ)^{-1}=
+\begin{bmatrix}
+0.130 & -0.04\cr
+-0.04 & 0.012
+\end{bmatrix}$$
+
+
+
+
+These quantities are all available from R:
+```{r}
+coef(fit1)
+fit1.sum <- summary(fit1) 
+fit1.sum$sigma^2
+vcov(fit1)
+```
+ 
+ 
+The most useful R command for summarizing the model fit is 
+```{r}
+summary(fit1)
+```
+ 
+ 
+R$^2$ and adjusted $R^2$
+----------------------------------
+
+Above we fitted the model
+$$y_i=a + b x_i+\epsilon_i$$
+and found that $s^2=0.12$ and $D=3.24$.
+
+For the null model 
+$$y_i=a+\epsilon_i$$
+we find that $s^2(\textrm{null})=0.23$ and $D_0=6.69$.
+
+\vspace{4cm}
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+Using R:
+```{r}
+fit1.sum <- summary(fit1) 
+fit1.sum$r.squared  ## gives the R^2 value
+fit1.sum$adj.r.squared ## gives the adjusted R^2 value
+```
+
+
+
+Next, define a new input variate $w$ to be 30 independent observations from a $U(0,1)$ distribution and fit the model $$y=a+bx+c w+\epsilon.$$
+
+For this model we get that
+$$R^2=0.516\qquad\text{and}\qquad R_{adj}^2=0.480.$$
+
+Notice that $R^2$ must improve when an input variate is added to the model. In this case, the input variate is unrelated to $y$ and so $R^2$ only improves by a very small amount. However $R_{adj}^2$ has gone down: it reflects the fact that this new input variate is not providing any useful information and is not worth including in the model.
+
+This shows why the adjusted R-squared is useful.
+ 
+
+ 
+ 
+Confidence intervals using R
+----------------------------------------
+```{r} 
+confint(fit1)   # gives 95% CI for both parameters
+confint(fit1, level=0.99)   # gives 99% CI for both parameters
+confint(fit1, level=0.99, parm="Nitrogen")   ## supplies just the nitrogen CI.
+```
+

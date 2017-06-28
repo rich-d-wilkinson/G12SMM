@@ -1,0 +1,412 @@
+---
+title: 'Case Study 6: General linear hypothesis tests: Toxicology experiment'
+author: "Richard Wilkinson"
+output:
+  html_document:
+    theme: default
+    toc: yes
+  pdf_document:
+    highlight: default
+    toc: no
+---
+
+
+
+The data
+-----------------------------------------------
+
+In a   toxicology experiment, 28 mice were randomly assigned to one of six different treatment groups and a control group. The control group received no treatment. After the treatment period the liver weight of each mouse was measured. Note that the response is a continuous quantity, but the regressor  is a discrete factor with 7 levels.
+
+```{r}
+filepath <- "https://www.maths.nottingham.ac.uk/personal/pmzrdw/ToxicologyData.txt"
+
+# Download the data from the internet
+download.file(filepath, destfile = "ToxicologyData.txt", method = "curl")
+ToxData <- read.table(file='ToxicologyData.txt', header=TRUE)
+str(ToxData) # look at the data structure
+```
+
+
+```{r}
+# Don't worry about these commands - they just allow us to see the data 
+# structured in a nice way
+library(reshape2)
+ToxData$mouse = rep(1:4,7)
+dcast(ToxData, mouse~Treatment, value.var = "Weight")
+ToxData <- subset(ToxData, select = -c(mouse) )
+```
+
+- Response = organ weight (continuous).
+- Input = treatment (discrete - a factor with 7 levels)
+
+What questions might we want to answer about this data set?
+
+- Is there evidence that any of the treatments is having an effect on liver weight?
+- Is treatment 1 better than treatment 2?
+- Are treatments 1-6 all equally effective?
+- etc.
+
+Visualise the data
+------------------------------
+
+
+Check the data  and plot it
+
+```{r}
+plot(Weight ~ Treatment, data=ToxData)   # Plot the data
+```
+
+This informally suggests that the treatments are having an effect. But with only 4 mice in each group, are the differences statistically significant?
+
+
+
+Parameterisation
+---------------------------
+
+How can we model these data? A simple model is to assume that each treatment group has a  mean weight,  but that this mean might be different for different treatment groups.
+
+
+##### Model 1:
+
+Let $y_{ij}$ be the $j^{th}$ mouse weight in treatment group $i$.
+
+$$
+y_{ij}=\begin{cases}\mu_C+\epsilon_{ij}, & \text{if}~ i=\text{`Control'}\\
+\mu_1+\epsilon_{ij}, & \text{if}~ i=1\\
+\mu_2+\epsilon_{ij}, & \text{if}~ i=2\\
+\mu_3+\epsilon_{ij}, & \text{if}~ i=3\\
+\mu_4+\epsilon_{ij}, & \text{if}~ i=4\\
+\mu_5+\epsilon_{ij}, & \text{if}~ i=5\\
+\mu_6+\epsilon_{ij}, & \text{if}~ i=6
+\end{cases}
+$$
+This model allows the mean responses $\mu_i$'s to be different for different treatments. This is an Analysis of Variance (ANOVA) model. 
+
+
+What is $Z$ here? We need to decide on a way to stack the $y_{ij}$ into an observation vector. If we set
+
+$$
+y= \left[ 
+\begin{array}{c}
+89.8 \\ 
+93.8 \\ 
+88.4 \\ 
+112.6 \\
+84.4 \\
+\vdots \\ 
+70.2
+\end{array}
+\right]  ,   \;\;\;\; x= \left[ 
+\begin{array}{c}
+C \\ 
+C \\ 
+C \\
+C \\
+1 \\
+\vdots \\ 
+6
+\end{array}
+\right] ,  \;\;\;\; \beta= \left[ 
+\begin{array}{c}
+\mu_C \\ 
+\mu_1 \\ 
+\mu_2 \\
+\vdots \\ 
+\mu_6
+\end{array}
+\right]
+$$
+
+then the
+ model in matrix form is
+
+$$
+y=\left[ 
+\begin{array}{ccccc}
+1&0& 0 & \dots & 0 \\ 
+1&0& 0 & \dots & 0 \\ 
+1&0& 0 &  & \vdots \\ 
+1&0& 0 &  &  \\ 
+0&1& 0 &  &  \\ 
+0&1& 0 &  &  \\ 
+0&1& 0 &  &  \\ 
+0&1& 0 &  &  \\ 
+0&0& 1 &  & \vdots \\ 
+0&0& 1 & \dots & 0 \\ 
+\vdots & & & & \vdots \\ 
+0&0& 0 & \dots & 1 \\ 
+0&0& 0 & \dots & 1 \\ 
+0&0& 0 & \dots & 1 \\ 
+0&0& 0 & \dots & 1
+\end{array}
+\right] \;\begin{bmatrix}\mu_C\\\mu_1 \\\mu_2\\\mu_3\\\mu_4\\\mu_5\\\mu_6 \end{bmatrix}+\epsilon.
+$$
+So, $Z$ is a (28 $\times$ 7) matrix of 0's and 1's (4 replicates of 7 treatments).
+
+One can show that the least squares estimators are 
+$$\hat{\mu}_i=\bar y_{i\cdot} = \frac{1}{4} \sum_j y_{ij}$$ (the mean of the observations from group $i$). 
+
+
+
+##### Model 2:
+
+It is possible to parameterise this model in a different way.  Consider:
+
+
+$$y_{ij}\quad =\begin{cases}\mu +\epsilon _{iC}\qquad& i=\mbox{`Control'}\\
+\mu +\alpha_{j}+\epsilon _{ij} \qquad &i=1,\dots,6.
+\end{cases}
+$$
+
+This is still a 7 parameter model with parameters 
+$\mu,\,\alpha _{1},\,\alpha _{2},\,\dots,\,\alpha _{6}$. Now 
+$$
+Z=\left[ 
+\begin{array}{cccccc}
+1 & 0 & 0 & \dots & 0 & 0 \\ 
+1 & 0 & 0 & \dots & 0 & 0 \\ 
+1 & 0 & 0 & \dots & 0 & 0 \\ 
+1 & 0 & 0 & \dots & 0 & 0 \\ 
+1 & 1 & 0 & \dots & 0 & 0 \\ 
+1 & 1 & 0 & \dots & 0 & 0 \\ 
+1 & 1 & 0 & \dots & 0 & 0 \\ 
+1 & 1 & 0 & \dots & 0 & 0 \\ 
+1 & 0 & 1 & \dots & 0 & 0 \\ 
+\vdots & \vdots & \vdots &   & \vdots & \vdots \\ 
+1 & 0 & 0 & \dots & 0 & 1
+\end{array}
+\right] .
+$$
+
+We can show that $\hat{\mu}=\bar{y}_{+C}\quad \hat{\alpha}_{j}=\bar{y}_{+j}-\bar{y}_{+C}$, 
+and thus the residuals are $y_{ij}-\bar{y}_{+j}$, the same as in model 1. 
+ 
+In this case model 2 is simply a *reparametrisation* of model 1, i.e., 
+$$
+\begin{aligned}
+\mu &=\mu_{C} \\
+\mu +\alpha _{j} &=\mu _{j}.
+\end{aligned}
+$$
+
+### Fitting the models in R
+
+We can fit model 1 in R using the command
+
+```{r}
+fit <- lm(Weight ~ Treatment - 1, data = ToxData)
+fit
+```
+
+The formula used contains a $-1$ as otherwise R automatically assumes an intercept term. If we don't use a -1 then we fit model 2 instead. Try
+```{r} 
+fit2 <- lm(Weight ~ Treatment, data=ToxData)
+```
+
+Note that we can see the design matrix used by lm by typing
+```{r, eval=FALSE}
+model.matrix(fit)
+```
+
+
+
+## A simple ANOVA test
+
+Lets consider testing the two models
+$$\begin{aligned}
+ &M_0: y_{ij} = \mu+\epsilon_{ij}\\
+&\mbox{ vs }M_1: y_{ij}= \mu+\alpha_i+\epsilon_{ij}
+\end{aligned}$$
+which is equivalent to testing
+$$\begin{aligned}
+ &H_0:\alpha_1=\ldots = \alpha_6=0\\
+&\mbox{ vs }H_1: \alpha_i \mbox{ arbitrary}
+\end{aligned}$$
+
+We use an F-test to do this ($q=6$ as we must constrain 6 parameters to go from $M_1$ to $M_0$). The anova command is the easiest way to do this in R (although you could use linearHypothesis if you wished). 
+
+```{r}
+fit <- lm(Weight ~ Treatment-1, data=ToxData)
+fit0 <- lm(Weight~1, data=ToxData) # fit the null model
+anova(fit0, fit)
+```
+
+So there is some evidence (p-value $= 0.039 $) to reject $H_0$ in favour of $H_1$.
+
+Can you manually calculate this F statistic?
+
+\vspace{5cm}
+
+
+
+
+## Single parameter hypothesis test
+
+Suppose we want to test 
+$H_{0}: \alpha_1=0$
+vs $H_{1}:\alpha_1$ arbitrary.
+
+We can use a simple t-test here (we can use an F-test, but as $q=1$, and $F_{1,n-p} = (t_{n-p})^2$ they are equivalent). The test statistic is 
+$$
+T=\frac{\mathbf{a}^{T}\hat{\beta}-\mathbf{a}^{T}
+\beta }{s \sqrt{\mathbf{a}^{T}\left(Z^{T}Z\right)^{-1}\mathbf{a}}}
+$$
+ with $\mathbf{a}^{T}=(0,1,0,0,0,0,0)$.
+
+Our $T$ statistic is therefore,
+\begin{equation*}
+T=\frac{\widehat\alpha_{1}}{\textrm{std.error}\left(\widehat{\alpha}_{1}\right)},
+\end{equation*}
+where,
+$$\textrm{std.error}(\widehat{\alpha}_{1})=
+s\sqrt{d_{ii}}.$$
+
+
+R tells us that $s=12.076$, $\widehat\alpha_1=-7.9$, and $d_{ii}=0.5$.  
+
+ 
+
+
+```{r}
+coef(fit2)
+fit.sum <- summary(fit2)
+fit.sum$sigma
+solve(t(model.matrix(fit2))%*%model.matrix(fit2))
+```
+
+Hence, 
+$$
+T=\frac{-7.9 }{12.0763\times\sqrt{0.5} }=-0.925.
+$$
+
+This is not significant, as $t_{21}(0.975)=2.0796$. 
+```{r}
+qt(0.975, df=21)
+```
+
+NB: there are $28-7=21$ degrees of freedom for this hypothesis test.
+Note that all of the 7 groups are contributing to the estimation
+of $\sigma^{2}$, whereas in the two-sample unpaired $t$-test (comparing group 1 with the control group)  only two groups would
+be used, and so the number of degrees of freedom would be $n_5+n_6-2=6$. 
+
+Note that the details above are just for illustrative purposes. To perform this test you can simply type
+```{r}
+summary(fit2)
+```
+and read off the answer.
+
+
+## More complex General Linear Hypothesis Tests
+
+Now lets consider the parameterization
+$$y_{ij}=\mu_{i}+\epsilon_{ij},$$
+for $i=C, 1,\dots,6$, $j=1,\dots,4$ and $\beta=(\mu_C, \mu_1,\dots,\mu_6)^T$. It is easy to show that $Z^\top Z = 4 I_7$.
+
+The general linear hypothesis test can test any hypothesis of the form $\mathbf{A}\beta=\mathbf{c}$.
+
+We use the R command linearHypothesis in the package car. Read about this function in the manual pages (type  ?linearHypothesis in R).
+
+Here are some examples:
+
+#### Example 1
+ Is there any difference between treatments 3 and 6?
+
+ $H_0:\mu_3=\mu_6$
+
+vs
+
+$H_1:\beta$ arbitrary.
+
+Here $\mathbf{A}=[0,0,0,1,0,0,-1]_{1\times 7}$ and $\mathbf{c}=[0]_{1\times 1}$. This test can equivalently be done with a $t$-test as there is only one constraint (as in the previous section).
+
+$(Z^TZ)^{-1}=0.25I_7$ then after some multiplication\dots
+
+$$
+\begin{aligned}
+Q_H-Q&=\left(\mathbf{A}\hat{\beta}-\mathbf{c}\right)^{T}\left[\mathbf{A}\left(Z^{T}Z\right)^{-1}\mathbf{A}^{T}\right]^{-1} \left(\mathbf{A}\hat{\beta}-\mathbf{c}\right)\\
+&= -1.75 \times \left( \frac{2}{4}\right)^{-1} \times (-1.75)\\
+&=6.125.\end{aligned}
+$$
+
+but, $Q=3062.6$ 
+```{r}
+deviance(fit)
+```
+and so 
+$$F=\frac{(Q_H-Q)}{Q/21}= \frac{6.126}{3062.6/21}=0.042,$$
+which is not significant as $$F_{1,21}(0.95)=4.32$$ and so there is no evidence to reject the hypothesis that $\mu_3=\mu_6$. 
+```{r}
+qf(0.95, df1=1, df2=21)
+```
+
+
+In R, we simply do the following:
+
+```{r, warning=FALSE}
+library(car)
+A <- c(0,0,0,1,0,0,-1)
+c = 0
+hyp1 <- linearHypothesis(fit, A, 0)
+hyp1
+```
+
+Make sure you know what all the numbers mean and how to calculate them yourself.
+
+
+#### Example 2 
+$H_0:\mu_3=\mu_6=70$
+
+vs
+
+$H_1:\beta$ arbitrary.
+
+
+This time, 
+$$\mathbf{A}=
+\begin{bmatrix}
+0 & 0 & 0 & 1 & 0 & 0 & 0\cr
+0 & 0 & 0 & 0 & 0 & 0 & 1
+\end{bmatrix}_{2\times 7} \mbox{  and   } \mathbf{c}=
+\begin{bmatrix}
+70\cr
+70
+\end{bmatrix}_{2\times 1}
+$$.
+
+
+```{r}
+A <- rbind(c(0,0,0,1,0,0,0),c(0,0,0,0,0,0,1))
+c=c(70,70)
+hyp2 <- linearHypothesis(fit, A,c)
+hyp2
+```
+
+Not significant at the 5\%  level as the p-value $>0.05$
+
+####  Example 3
+$H_0:\mu_3+\mu_6=2\mu_1$, $\mu_1=80$ and $\mu_2=60$
+
+vs
+
+$H_1:\beta$ arbitrary.
+
+
+Now
+$$\mathbf{A}=
+\begin{bmatrix}
+0 & 2 & 0 & -1 & 0 & 0 & -1\cr
+0 & 1 & 0 & 0 & 0 & 0 & 0\cr
+0 & 0 & 1 & 0 & 0 & 0 & 0
+\end{bmatrix}_{3\times 7} \mbox{ and }\mathbf{c}=
+\begin{bmatrix}
+0\cr
+80\cr
+60
+\end{bmatrix}_{3\times 1}$$
+
+```{r}
+A <- rbind(c(0,-2,0,1,0,0,1),c(0,1,0,0,0,0,0), c(0,0,1,0,0,0,0))
+c=c(0, 80,60)
+hyp3 <- linearHypothesis(fit, A, c)
+hyp3
+```
